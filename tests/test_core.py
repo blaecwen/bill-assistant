@@ -82,9 +82,12 @@ async def test_voice_after_fresh_photo_passes_audio_bytes(ps, rl, mock_llm):
     resp = await msg(ps, rl, request=voice, request_type="audio", audio_format="ogg")
 
     assert resp.text == LLM_REPLY
-    mock_llm.assert_called_once_with(
-        photo_bytes=PHOTO, request_text=None, audio_bytes=voice, audio_format="ogg"
-    )
+    mock_llm.assert_called_once()
+    _, kw = mock_llm.call_args
+    assert kw["photo_bytes"] == PHOTO
+    assert kw["request_text"] is None
+    assert kw["audio_bytes"] == voice
+    assert kw["audio_format"] == "ogg"
 
 
 async def test_text_with_no_photo_asks_for_photo(ps, rl, mock_llm):
@@ -127,9 +130,27 @@ async def test_yes_after_stale_processes_with_pending_request(ps, rl, mock_llm):
 
     assert resp.text == LLM_REPLY
     assert resp.needs_input is False
-    mock_llm.assert_called_once_with(
-        photo_bytes=PHOTO, request_text="split for 4", audio_bytes=None, audio_format="ogg"
-    )
+    mock_llm.assert_called_once()
+    _, kw = mock_llm.call_args
+    assert kw["photo_bytes"] == PHOTO
+    assert kw["request_text"] == "split for 4"
+    assert kw["audio_bytes"] is None
+    assert kw["audio_format"] == "ogg"
+
+
+async def test_yes_after_stale_history_contains_prior_exchange(ps, rl, mock_llm):
+    """History passed to LLM should include the initial photo intake."""
+    await msg(ps, rl, photo=PHOTO)
+    make_stale(ps)
+    await msg(ps, rl, request="split for 4", request_type="text")
+    await msg(ps, rl, request="yes", request_type="text")
+
+    _, kw = mock_llm.call_args
+    history = kw["history"]
+    assert len(history) >= 2
+    assert history[0].role == "user"
+    assert "[photo]" in history[0].content
+    assert history[1].role == "assistant"
 
 
 async def test_non_affirmative_during_confirmation_reprompts_and_preserves_pending(ps, rl, mock_llm):
@@ -159,12 +180,12 @@ async def test_new_photo_while_awaiting_confirmation_processes_pending_immediate
 
     assert resp.text == LLM_REPLY
     assert resp.needs_input is False
-    mock_llm.assert_called_once_with(
-        photo_bytes=new_photo,  # new photo, not the stale one
-        request_text="split for 4",
-        audio_bytes=None,
-        audio_format="ogg",
-    )
+    mock_llm.assert_called_once()
+    _, kw = mock_llm.call_args
+    assert kw["photo_bytes"] == new_photo  # new photo, not the stale one
+    assert kw["request_text"] == "split for 4"
+    assert kw["audio_bytes"] is None
+    assert kw["audio_format"] == "ogg"
 
 
 # ---------------------------------------------------------------------------

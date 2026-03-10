@@ -2,11 +2,20 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+_HISTORY_LIMIT = 10
+
+
+@dataclass
+class HistoryEntry:
+    role: Literal["user", "assistant"]
+    content: str
 
 
 @dataclass
@@ -22,6 +31,7 @@ class ChatState:
     photo: Optional[StoredPhoto] = None
     pending_request: Optional[str] = None
     awaiting_stale_confirmation: bool = False
+    history: list[HistoryEntry] = field(default_factory=list)
 
 
 class PhotoStore:
@@ -102,6 +112,21 @@ class PhotoStore:
         state = self._get_state(chat_id)
         state.pending_request = None
         state.awaiting_stale_confirmation = False
+
+    # ------------------------------------------------------------------
+    # Conversation history
+    # ------------------------------------------------------------------
+
+    def add_to_history(
+        self, chat_id: str, role: Literal["user", "assistant"], content: str
+    ) -> None:
+        state = self._get_state(chat_id)
+        state.history.append(HistoryEntry(role=role, content=content))
+        if len(state.history) > _HISTORY_LIMIT:
+            state.history = state.history[-_HISTORY_LIMIT:]
+
+    def get_history(self, chat_id: str) -> list[HistoryEntry]:
+        return list(self._get_state(chat_id).history)
 
     def cleanup_expired(self) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(days=self._retain_days)

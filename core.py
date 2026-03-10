@@ -55,6 +55,7 @@ async def process_message(
         effective_request = request
         effective_request_type = request_type
         effective_audio_format = audio_format
+        recovered_pending = False
 
         if effective_request is None and pending is not None:
             logger.debug(
@@ -63,16 +64,27 @@ async def process_message(
             )
             effective_request = pending
             effective_request_type = "text"
+            recovered_pending = True
 
         if effective_request is not None:
             allowed = await rate_limiter.check_and_increment()
             if not allowed:
                 return BillResponse(text=_RATE_LIMIT_MSG)
 
+            if effective_request_type == "audio":
+                user_hist = "[photo] [voice message]"
+            elif recovered_pending:
+                user_hist = f"[new photo] {effective_request}"
+            else:
+                user_hist = f"[photo] {effective_request}"
+
             return await _call_and_respond(
-                chat_id, photo, effective_request, effective_request_type, effective_audio_format
+                chat_id, photo, effective_request, effective_request_type,
+                effective_audio_format, photo_store, user_hist,
             )
 
+        photo_store.add_to_history(chat_id, "user", "[photo]")
+        photo_store.add_to_history(chat_id, "assistant", _GOT_PHOTO_MSG)
         return BillResponse(text=_GOT_PHOTO_MSG, needs_input=True)
 
     # ------------------------------------------------------------------ #
@@ -99,7 +111,8 @@ async def process_message(
                     return BillResponse(text=_RATE_LIMIT_MSG)
 
                 return await _call_and_respond(
-                    chat_id, stored.data, pending, "text", None
+                    chat_id, stored.data, pending, "text", None,
+                    photo_store, pending,
                 )
             else:
                 # Arbitrary text while waiting — re-prompt
@@ -133,8 +146,12 @@ async def process_message(
             return BillResponse(text=_RATE_LIMIT_MSG)
 
         stored = photo_store.get_photo(chat_id)
+        user_hist = "[voice message]" if request_type == "audio" else (
+            request if isinstance(request, str) else "[message]"
+        )
         return await _call_and_respond(
-            chat_id, stored.data, request, request_type, audio_format
+            chat_id, stored.data, request, request_type, audio_format,
+            photo_store, user_hist,
         )
 
     # ------------------------------------------------------------------ #
@@ -149,6 +166,8 @@ async def _call_and_respond(
     request: str | bytes,
     request_type: Optional[str],
     audio_format: Optional[str],
+    photo_store: PhotoStore,
+    user_history_text: str,
 ) -> BillResponse:
     request_text: Optional[str] = None
     audio_bytes: Optional[bytes] = None
@@ -158,13 +177,18 @@ async def _call_and_respond(
     elif isinstance(request, str):
         request_text = request
 
+    history = photo_store.get_history(chat_id)
+
     try:
         result = await call_llm(
             photo_bytes=photo_bytes,
             request_text=request_text,
             audio_bytes=audio_bytes,
             audio_format=audio_format or "ogg",
+            history=history,
         )
+        photo_store.add_to_history(chat_id, "user", user_history_text)
+        photo_store.add_to_history(chat_id, "assistant", result)
         return BillResponse(text=result)
     except LLMError:
         logger.error("LLM error for chat_id=%s", chat_id)

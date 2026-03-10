@@ -8,6 +8,7 @@ from langfuse.openai import AsyncOpenAI
 
 from config import settings
 from prompts import prompt_manager
+from state import HistoryEntry
 
 logger = logging.getLogger(__name__)
 
@@ -54,19 +55,22 @@ async def call_llm(
     request_text: Optional[str] = None,
     audio_bytes: Optional[bytes] = None,
     audio_format: str = "ogg",
+    history: Optional[list[HistoryEntry]] = None,
 ) -> str:
     langfuse_prompt = prompt_manager.get_langfuse_prompt_object()
     system_prompt_text = langfuse_prompt.compile()
 
-    messages = [
-        {"role": "system", "content": system_prompt_text},
-        {
-            "role": "user",
-            "content": _build_user_content(
-                request_text, photo_bytes, audio_bytes, audio_format
-            ),
-        },
-    ]
+    messages: list[dict] = [{"role": "system", "content": system_prompt_text}]
+
+    for entry in (history or []):
+        messages.append({"role": entry.role, "content": entry.content})
+
+    messages.append({
+        "role": "user",
+        "content": _build_user_content(
+            request_text, photo_bytes, audio_bytes, audio_format
+        ),
+    })
 
     logger.debug(
         "LLM request",
