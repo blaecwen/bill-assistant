@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Literal, Optional
 
-from config import settings
-
 logger = logging.getLogger(__name__)
 
 
