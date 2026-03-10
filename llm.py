@@ -93,6 +93,8 @@ async def call_llm(
 
     latency_ms = (time.monotonic() - start) * 1000
     result = response.choices[0].message.content
+    if not result:
+        raise LLMError("Model returned empty response")
     logger.info(
         "LLM call complete",
         extra={"model": settings.llm_model, "latency_ms": round(latency_ms)},

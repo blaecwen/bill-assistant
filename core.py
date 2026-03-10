@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from llm import LLMError, call_llm
@@ -130,7 +131,6 @@ async def process_message(
             photo_store.set_awaiting_stale_confirmation(chat_id, True)
 
             stored = photo_store.get_photo(chat_id)
-            from datetime import datetime, timezone
             age_min = (
                 (datetime.now(timezone.utc) - stored.stored_at).total_seconds() / 60
                 if stored else 0

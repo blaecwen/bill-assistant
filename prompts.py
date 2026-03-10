@@ -18,14 +18,6 @@ class PromptManager:
         )
         self._cache_ttl_seconds = settings.prompt_cache_ttl_minutes * 60
 
-    def get_system_prompt(self) -> str:
-        prompt = self._client.get_prompt(
-            "bill-assistant",
-            cache_ttl_seconds=self._cache_ttl_seconds,
-            fallback=_FALLBACK_PROMPT,
-        )
-        return prompt.compile()
-
     def get_langfuse_prompt_object(self):
         return self._client.get_prompt(
             "bill-assistant",

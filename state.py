@@ -39,7 +39,6 @@ class PhotoStore:
         self._ttl_minutes = ttl_minutes
         self._retain_days = retain_days
         self._states: dict[str, ChatState] = {}
-        self._lock = asyncio.Lock()
 
     def _get_state(self, chat_id: str) -> ChatState:
         if chat_id not in self._states:
