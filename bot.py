@@ -45,7 +45,10 @@ async def _typing(bot: Bot, chat_id: str):
         yield
     finally:
         task.cancel()
-        await task
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 _HELP_TEXT = (
