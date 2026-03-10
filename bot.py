@@ -1,6 +1,7 @@
 import logging
 
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -59,7 +60,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         request=caption,
         request_type="text" if caption else None,
     )
-    await update.message.reply_text(response.text)
+    await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
 
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -77,7 +78,7 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         request_type="audio",
         audio_format="ogg",
     )
-    await update.message.reply_text(response.text)
+    await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -95,7 +96,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         request=text,
         request_type="text",
     )
-    await update.message.reply_text(response.text)
+    await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
 
 async def cleanup_job(context: ContextTypes.DEFAULT_TYPE) -> None:

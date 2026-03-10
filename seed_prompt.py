@@ -25,8 +25,8 @@ Rules:
 - Use the currency on the bill.
 - Split tax/service proportionally unless told otherwise.
 - If you can't read something, say so — don't guess.
-- Keep it concise. No markdown tables (this is Telegram).
-- If the request is ambiguous, ask a clarifying question.\
+- If the request is ambiguous, ask a clarifying question.
+- Format your response using Telegram HTML: use <b>bold</b> for section headers and the final answer. Use plain hyphens (-) for bullet lists. No markdown, no tables.\
 """
 
 
