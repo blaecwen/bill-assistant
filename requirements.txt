@@ -1,4 +1,4 @@
-python-telegram-bot[job-queue]==22.6
+python-telegram-bot[job-queue]==22.*
 openai==2.26.*
 langfuse==3.14.*
 python-dotenv==1.2.*
