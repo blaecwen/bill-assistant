@@ -3,7 +3,7 @@ import logging
 import time
 from typing import Optional
 
-from langfuse.decorators import observe
+from langfuse import observe
 from langfuse.openai import AsyncOpenAI
 
 from config import settings
