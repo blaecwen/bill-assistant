@@ -235,3 +235,60 @@ async def test_llm_error_returns_friendly_message(ps, rl):
 
     assert resp.text == _LLM_ERROR_MSG
     assert resp.needs_input is False
+
+
+async def test_llm_error_does_not_pollute_history(ps, rl):
+    """
+    A failed LLM call must not write anything to history.  If it did, the
+    next successful call would receive a phantom user/assistant pair with
+    no real content, corrupting the conversation context.
+    """
+    with patch("core.call_llm", new_callable=AsyncMock) as m:
+        m.side_effect = LLMError("timeout")
+        await msg(ps, rl, photo=PHOTO)          # adds [photo] + got-photo to history
+        await msg(ps, rl, request="split for 2", request_type="text")  # LLM fails
+
+    # Only the photo-intake exchange must be present; the failed request leaves no trace
+    history = ps.get_history(CHAT)
+    assert len(history) == 2
+    assert history[0].content == "[photo]"
+    assert history[1].role == "assistant"
+
+
+# ---------------------------------------------------------------------------
+# Voice on stale photo
+# ---------------------------------------------------------------------------
+
+async def test_voice_on_stale_photo_triggers_reuse_prompt(ps, rl, mock_llm):
+    """
+    A voice request on a stale photo can't be stored as pending (audio bytes
+    aren't serialisable as a string).  The bot should still ask whether to
+    reuse the photo — not silently drop the message.
+    """
+    voice = b"ogg-audio"
+    await msg(ps, rl, photo=PHOTO)
+    make_stale(ps)
+    resp = await msg(ps, rl, request=voice, request_type="audio", audio_format="ogg")
+
+    assert resp.needs_input is True
+    assert "min old" in resp.text
+    mock_llm.assert_not_called()
+
+
+async def test_voice_on_stale_photo_yes_asks_for_request(ps, rl, mock_llm):
+    """
+    After confirming stale-photo reuse when the original request was audio
+    (and therefore not stored as pending), the bot should prompt for a new
+    request — NOT say 'please send a photo first'.
+    """
+    voice = b"ogg-audio"
+    await msg(ps, rl, photo=PHOTO)
+    make_stale(ps)
+    await msg(ps, rl, request=voice, request_type="audio", audio_format="ogg")
+
+    resp = await msg(ps, rl, request="yes", request_type="text")
+
+    assert resp.needs_input is True
+    assert resp.text != _NO_PHOTO_MSG   # photo is present — wrong message
+    assert resp.text == _GOT_PHOTO_MSG  # asks what they want
+    mock_llm.assert_not_called()

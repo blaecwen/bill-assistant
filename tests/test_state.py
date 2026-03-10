@@ -92,6 +92,37 @@ def test_cleanup_returns_zero_when_nothing_expired():
 
 
 # ---------------------------------------------------------------------------
+# PhotoStore — conversation history
+# ---------------------------------------------------------------------------
+
+def test_history_is_capped_at_ten_entries():
+    """
+    Oldest entries must be evicted once the cap is reached, ensuring the
+    history slice passed to the LLM stays bounded regardless of session length.
+    """
+    ps = PhotoStore(ttl_minutes=30, retain_days=7)
+    for i in range(15):
+        ps.add_to_history(CHAT, "user", f"msg {i}")
+
+    history = ps.get_history(CHAT)
+    assert len(history) == 10
+    assert history[0].content == "msg 5"   # first 5 evicted
+    assert history[-1].content == "msg 14"  # most recent preserved
+
+
+def test_history_alternates_roles_correctly():
+    """get_history returns entries in insertion order with the correct roles."""
+    ps = PhotoStore(ttl_minutes=30, retain_days=7)
+    ps.add_to_history(CHAT, "user", "hello")
+    ps.add_to_history(CHAT, "assistant", "world")
+
+    history = ps.get_history(CHAT)
+    assert len(history) == 2
+    assert history[0].role == "user"
+    assert history[1].role == "assistant"
+
+
+# ---------------------------------------------------------------------------
 # RateLimiter
 # ---------------------------------------------------------------------------
 

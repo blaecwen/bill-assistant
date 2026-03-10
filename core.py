@@ -104,8 +104,13 @@ async def process_message(
                 pending = photo_store.get_pending_request(chat_id)
                 photo_store.clear_state(chat_id)
 
-                if stored is None or pending is None:
+                if stored is None:
                     return BillResponse(text=_NO_PHOTO_MSG, needs_input=True)
+
+                if pending is None:
+                    # No pending text request (e.g. prior request was audio, which
+                    # can't be stored as pending). Photo is confirmed — ask what they want.
+                    return BillResponse(text=_GOT_PHOTO_MSG, needs_input=True)
 
                 allowed = await rate_limiter.check_and_increment()
                 if not allowed:
