@@ -32,7 +32,10 @@ async def _typing(bot: Bot, chat_id: str):
     async def _loop() -> None:
         try:
             while True:
-                await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+                try:
+                    await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+                except Exception:
+                    pass  # don't let a transient API error kill the task
                 await asyncio.sleep(4)
         except asyncio.CancelledError:
             pass
