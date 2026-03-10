@@ -1,7 +1,9 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 
-from telegram import Update
-from telegram.constants import ParseMode
+from telegram import Update, Bot
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -22,6 +24,26 @@ photo_store = PhotoStore(
     retain_days=settings.photo_retain_days,
 )
 rate_limiter = RateLimiter(daily_limit=settings.daily_request_limit)
+
+@asynccontextmanager
+async def _typing(bot: Bot, chat_id: str):
+    """Keep the Telegram 'typing…' indicator alive for the duration of a block."""
+
+    async def _loop() -> None:
+        try:
+            while True:
+                await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+                await asyncio.sleep(4)
+        except asyncio.CancelledError:
+            pass
+
+    task = asyncio.create_task(_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        await task
+
 
 _HELP_TEXT = (
     "I help you split bills!\n\n"
@@ -52,14 +74,15 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     caption = msg.caption
 
-    response: BillResponse = await process_message(
-        chat_id=chat_id,
-        photo_store=photo_store,
-        rate_limiter=rate_limiter,
-        photo=photo_bytes,
-        request=caption,
-        request_type="text" if caption else None,
-    )
+    async with _typing(context.bot, chat_id):
+        response: BillResponse = await process_message(
+            chat_id=chat_id,
+            photo_store=photo_store,
+            rate_limiter=rate_limiter,
+            photo=photo_bytes,
+            request=caption,
+            request_type="text" if caption else None,
+        )
     await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
 
@@ -70,14 +93,15 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     voice_file = await context.bot.get_file(update.message.voice.file_id)
     voice_bytes = bytes(await voice_file.download_as_bytearray())
 
-    response: BillResponse = await process_message(
-        chat_id=chat_id,
-        photo_store=photo_store,
-        rate_limiter=rate_limiter,
-        request=voice_bytes,
-        request_type="audio",
-        audio_format="ogg",
-    )
+    async with _typing(context.bot, chat_id):
+        response: BillResponse = await process_message(
+            chat_id=chat_id,
+            photo_store=photo_store,
+            rate_limiter=rate_limiter,
+            request=voice_bytes,
+            request_type="audio",
+            audio_format="ogg",
+        )
     await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
 
@@ -89,13 +113,14 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         extra={"chat_id": chat_id, "length": len(text)},
     )
 
-    response: BillResponse = await process_message(
-        chat_id=chat_id,
-        photo_store=photo_store,
-        rate_limiter=rate_limiter,
-        request=text,
-        request_type="text",
-    )
+    async with _typing(context.bot, chat_id):
+        response: BillResponse = await process_message(
+            chat_id=chat_id,
+            photo_store=photo_store,
+            rate_limiter=rate_limiter,
+            request=text,
+            request_type="text",
+        )
     await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
 
