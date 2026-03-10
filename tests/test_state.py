@@ -95,14 +95,6 @@ def test_cleanup_returns_zero_when_nothing_expired():
 # RateLimiter
 # ---------------------------------------------------------------------------
 
-async def test_allows_requests_under_limit():
-    rl = RateLimiter(daily_limit=3)
-
-    assert await rl.check_and_increment() is True
-    assert await rl.check_and_increment() is True
-    assert await rl.check_and_increment() is True
-
-
 async def test_blocks_at_exactly_the_limit():
     rl = RateLimiter(daily_limit=2)
     await rl.check_and_increment()

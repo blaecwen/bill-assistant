@@ -188,19 +188,15 @@ async def test_rate_limit_blocks_caption_shortcut(ps, mock_llm):
     mock_llm.assert_not_called()
 
 
-async def test_rate_limit_blocks_stale_confirmation(ps, mock_llm):
-    rl = RateLimiter(daily_limit=1)
-    await msg(ps, rl, photo=PHOTO)
-    make_stale(ps)
-    await msg(ps, rl, request="split for 2", request_type="text")  # consumes the 1 allowed... wait
+async def test_rate_limit_blocks_stale_confirmation(mock_llm):
+    """Rate limit must fire even when the user says 'yes' to reuse a stale photo."""
+    ps = PhotoStore(ttl_minutes=30, retain_days=7)
+    rl = RateLimiter(daily_limit=0)
 
-    # Actually confirmation itself is the LLM call — exhaust limit first via caption
-    rl2 = RateLimiter(daily_limit=0)
-    ps2 = PhotoStore(ttl_minutes=30, retain_days=7)
-    await process_message(CHAT, ps2, rl2, photo=PHOTO)
-    make_stale(ps2)
-    await process_message(CHAT, ps2, rl2, request="split for 2", request_type="text")
-    resp = await process_message(CHAT, ps2, rl2, request="yes", request_type="text")
+    await process_message(CHAT, ps, rl, photo=PHOTO)
+    make_stale(ps)
+    await process_message(CHAT, ps, rl, request="split for 2", request_type="text")
+    resp = await process_message(CHAT, ps, rl, request="yes", request_type="text")
 
     assert resp.text == _RATE_LIMIT_MSG
     mock_llm.assert_not_called()
