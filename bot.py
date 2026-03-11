@@ -64,13 +64,14 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
     async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id = str(update.effective_chat.id)
         msg = update.message
-        logger.info(
-            "Incoming photo",
-            extra={"session_id": chat_id, "has_caption": bool(msg.caption)},
-        )
-
         photo_file = await context.bot.get_file(msg.photo[-1].file_id)
         photo_bytes = bytes(await photo_file.download_as_bytearray())
+        logger.info(
+            "Incoming photo session_id=%s size_kb=%d has_caption=%s",
+            chat_id,
+            len(photo_bytes) // 1024,
+            bool(msg.caption),
+        )
 
         caption = msg.caption
 
@@ -87,7 +88,7 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
 
     async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id = str(update.effective_chat.id)
-        logger.info("Incoming voice message", extra={"session_id": chat_id})
+        logger.info("Incoming voice message session_id=%s", chat_id)
 
         voice_file = await context.bot.get_file(update.message.voice.file_id)
         voice_bytes = bytes(await voice_file.download_as_bytearray())
@@ -107,9 +108,9 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
         chat_id = str(update.effective_chat.id)
         text = update.message.text
         logger.info(
-            "Incoming text message: %s",
+            "Incoming text message session_id=%s: %s",
+            chat_id,
             text[:100],
-            extra={"session_id": chat_id, "length": len(text)},
         )
 
         async with _typing(context.bot, chat_id):

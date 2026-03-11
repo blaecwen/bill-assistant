@@ -90,6 +90,7 @@ async def process_message(
         if effective_request is not None:
             allowed = await rate_limiter.check_and_increment()
             if not allowed:
+                logger.warning("Daily rate limit reached session_id=%s", session_id)
                 return BillResponse(text=_RATE_LIMIT_MSG, rate_limited=True)
 
             if effective_request_type == "audio":
@@ -134,6 +135,7 @@ async def process_message(
 
                 allowed = await rate_limiter.check_and_increment()
                 if not allowed:
+                    logger.warning("Daily rate limit reached session_id=%s", session_id)
                     return BillResponse(text=_RATE_LIMIT_MSG, rate_limited=True)
 
                 return await _call_and_respond(
@@ -168,6 +170,7 @@ async def process_message(
         # B4: Photo is fresh (or stale check skipped) — process
         allowed = await rate_limiter.check_and_increment()
         if not allowed:
+            logger.warning("Daily rate limit reached session_id=%s", session_id)
             return BillResponse(text=_RATE_LIMIT_MSG, rate_limited=True)
 
         stored = photo_store.get_photo(session_id)

@@ -56,8 +56,9 @@ class PhotoStore:
         state.pending_request = None
         state.awaiting_stale_confirmation = False
         logger.info(
-            "Photo stored",
-            extra={"session_id": session_id, "timestamp": now.isoformat(), "size_bytes": size},
+            "Photo stored session_id=%s size_kb=%d",
+            session_id,
+            size // 1024,
         )
 
     def get_photo(self, session_id: str) -> Optional[StoredPhoto]:
@@ -83,10 +84,7 @@ class PhotoStore:
     def reset_photo_ttl(self, session_id: str) -> None:
         state = self._get_state(session_id)
         if state.photo is not None:
-            logger.warning(
-                "Stale photo reused",
-                extra={"session_id": session_id},
-            )
+            logger.warning("Stale photo reused session_id=%s", session_id)
             state.photo.stored_at = datetime.now(timezone.utc)
 
     def delete_photo(self, session_id: str) -> None:

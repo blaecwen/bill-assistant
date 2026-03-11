@@ -73,12 +73,10 @@ async def call_llm(
     })
 
     logger.debug(
-        "LLM request",
-        extra={
-            "model": settings.llm_model,
-            "has_audio": audio_bytes is not None,
-            "request_text": request_text,
-        },
+        "LLM request model=%s has_audio=%s: %s",
+        settings.llm_model,
+        audio_bytes is not None,
+        (request_text or "")[:100],
     )
 
     start = time.monotonic()
@@ -97,9 +95,10 @@ async def call_llm(
     if not result:
         raise LLMError("Model returned empty response")
     logger.info(
-        "LLM call complete: %s",
+        "LLM call complete model=%s latency_ms=%d: %s",
+        settings.llm_model,
+        round(latency_ms),
         (request_text or "")[:100],
-        extra={"model": settings.llm_model, "latency_ms": round(latency_ms)},
     )
     logger.debug("LLM response: %s", result)
     return result

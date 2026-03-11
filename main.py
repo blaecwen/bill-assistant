@@ -30,7 +30,7 @@ async def _run(telegram_app, fastapi_app) -> None:
     async with telegram_app:
         await telegram_app.start()
         await telegram_app.updater.start_polling(drop_pending_updates=True)
-        logger.info("Bot polling started")
+        logger.info("Bot and API server ready")
 
         await server.serve()
 
@@ -52,10 +52,20 @@ def main() -> None:
     )
     rate_limiter = RateLimiter(daily_limit=settings.daily_request_limit)
 
+    logger.info(
+        "Starting bill-assistant | model=%s port=8000 "
+        "photo_ttl=%dm retain=%dd rate_limit=%d/day prompt_cache=%dm log_level=%s",
+        settings.llm_model,
+        settings.photo_ttl_minutes,
+        settings.photo_retain_days,
+        settings.daily_request_limit,
+        settings.prompt_cache_ttl_minutes,
+        settings.log_level,
+    )
+
     telegram_app = build_telegram_app(photo_store, rate_limiter)
     fastapi_app = build_fastapi_app(photo_store, rate_limiter)
 
-    logger.info("Starting bot and API server...")
     asyncio.run(_run(telegram_app, fastapi_app))
 
 
