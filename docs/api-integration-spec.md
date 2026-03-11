@@ -108,3 +108,19 @@ class BillResponse:
     needs_input: bool                    # internal, Telegram layer only — not in HTTP API
     request_summary: str | None = None  # populated when audio was processed
 ```
+
+---
+
+## Test scenarios
+
+Key integration tests for `POST /api/process`. All use a real (or stubbed) `PhotoStore`/`RateLimiter` passed into a `TestClient`.
+
+| # | Scenario | Input | Expected |
+|---|---|---|---|
+| 1 | Photo + audio → 200 | `session_id`, `photo`, `audio` (webm) | `200`, `text` non-empty, `request_summary` non-null |
+| 2 | Audio follow-up (no photo in request) | `session_id` only, `audio` | `200`, uses stored photo from scenario 1 |
+| 3 | Missing `session_id` → 400 | no `session_id` | `400`, `{"error": "bad_request"}` |
+| 4 | Audio with no photo stored → ask for photo | `session_id` (fresh), `audio` | `200`, response asks user to send a photo |
+| 5 | Daily limit reached → 429 | `RateLimiter(daily_limit=0)`, valid request | `429`, `{"error": "daily_limit_reached"}` |
+| 6 | LLM failure → 500 | LLM stubbed to raise `LLMError` | `500`, `{"error": "server_error"}` |
+| 7 | `audio/mp4` Content-Type passes through | `audio` file with `Content-Type: audio/mp4` | format inferred as `mp4`, passed to core correctly |

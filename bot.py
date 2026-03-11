@@ -19,11 +19,6 @@ from state import PhotoStore, RateLimiter
 
 logger = logging.getLogger(__name__)
 
-photo_store = PhotoStore(
-    ttl_minutes=settings.photo_ttl_minutes,
-    retain_days=settings.photo_retain_days,
-)
-rate_limiter = RateLimiter(daily_limit=settings.daily_request_limit)
 
 @asynccontextmanager
 async def _typing(bot: Bot, chat_id: str):
@@ -33,7 +28,7 @@ async def _typing(bot: Bot, chat_id: str):
         try:
             while True:
                 try:
-                    await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+                    await bot.send_chat_action(session_id=chat_id, action=ChatAction.TYPING)
                 except Exception:
                     pass  # don't let a transient API error kill the task
                 await asyncio.sleep(4)
@@ -62,84 +57,74 @@ _HELP_TEXT = (
 )
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(_HELP_TEXT)
+def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Application:
+    async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await update.message.reply_text(_HELP_TEXT)
 
-
-async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = str(update.effective_chat.id)
-    msg = update.message
-    logger.info(
-        "Incoming photo",
-        extra={"chat_id": chat_id, "has_caption": bool(msg.caption)},
-    )
-
-    photo_file = await context.bot.get_file(msg.photo[-1].file_id)
-    photo_bytes = bytes(await photo_file.download_as_bytearray())
-
-    caption = msg.caption
-
-    async with _typing(context.bot, chat_id):
-        response: BillResponse = await process_message(
-            chat_id=chat_id,
-            photo_store=photo_store,
-            rate_limiter=rate_limiter,
-            photo=photo_bytes,
-            request=caption,
-            request_type="text" if caption else None,
+    async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = str(update.effective_chat.id)
+        msg = update.message
+        logger.info(
+            "Incoming photo",
+            extra={"chat_id": chat_id, "has_caption": bool(msg.caption)},
         )
-    await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
+        photo_file = await context.bot.get_file(msg.photo[-1].file_id)
+        photo_bytes = bytes(await photo_file.download_as_bytearray())
 
-async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = str(update.effective_chat.id)
-    logger.info("Incoming voice message", extra={"chat_id": chat_id})
+        caption = msg.caption
 
-    voice_file = await context.bot.get_file(update.message.voice.file_id)
-    voice_bytes = bytes(await voice_file.download_as_bytearray())
+        async with _typing(context.bot, chat_id):
+            response: BillResponse = await process_message(
+                session_id=chat_id,
+                photo_store=photo_store,
+                rate_limiter=rate_limiter,
+                photo=photo_bytes,
+                request=caption,
+                request_type="text" if caption else None,
+            )
+        await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
-    async with _typing(context.bot, chat_id):
-        response: BillResponse = await process_message(
-            chat_id=chat_id,
-            photo_store=photo_store,
-            rate_limiter=rate_limiter,
-            request=voice_bytes,
-            request_type="audio",
-            audio_format="ogg",
+    async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = str(update.effective_chat.id)
+        logger.info("Incoming voice message", extra={"chat_id": chat_id})
+
+        voice_file = await context.bot.get_file(update.message.voice.file_id)
+        voice_bytes = bytes(await voice_file.download_as_bytearray())
+
+        async with _typing(context.bot, chat_id):
+            response: BillResponse = await process_message(
+                session_id=chat_id,
+                photo_store=photo_store,
+                rate_limiter=rate_limiter,
+                request=voice_bytes,
+                request_type="audio",
+                audio_format="ogg",
+            )
+        await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
+
+    async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = str(update.effective_chat.id)
+        text = update.message.text
+        logger.info(
+            "Incoming text message",
+            extra={"chat_id": chat_id, "length": len(text)},
         )
-    await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
+        async with _typing(context.bot, chat_id):
+            response: BillResponse = await process_message(
+                session_id=chat_id,
+                photo_store=photo_store,
+                rate_limiter=rate_limiter,
+                request=text,
+                request_type="text",
+            )
+        await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = str(update.effective_chat.id)
-    text = update.message.text
-    logger.info(
-        "Incoming text message",
-        extra={"chat_id": chat_id, "length": len(text)},
-    )
-
-    async with _typing(context.bot, chat_id):
-        response: BillResponse = await process_message(
-            chat_id=chat_id,
-            photo_store=photo_store,
-            rate_limiter=rate_limiter,
-            request=text,
-            request_type="text",
-        )
-    await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
-
-
-async def cleanup_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    count = photo_store.cleanup_expired()
-    if count > 0:
-        logger.info("Cleanup job: deleted %d expired photo(s)", count)
-
-
-def main() -> None:
-    logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+    async def cleanup_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+        count = photo_store.cleanup_expired()
+        if count > 0:
+            logger.info("Cleanup job: deleted %d expired photo(s)", count)
 
     app: Application = ApplicationBuilder().token(settings.telegram_bot_token).build()
 
@@ -151,9 +136,4 @@ def main() -> None:
 
     app.job_queue.run_repeating(cleanup_job, interval=3600, first=10)
 
-    logger.info("Bot starting with polling...")
-    app.run_polling(drop_pending_updates=True)
-
-
-if __name__ == "__main__":
-    main()
+    return app

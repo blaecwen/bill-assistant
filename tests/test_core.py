@@ -19,12 +19,12 @@ from core import (
 )
 from llm import LLMError
 from state import PhotoStore, RateLimiter
-from tests.conftest import CHAT, PHOTO, LLM_REPLY
+from tests.conftest import CHAT, PHOTO, LLM_REPLY_TEXT
 
 
-def make_stale(ps: PhotoStore, chat_id: str = CHAT, minutes_ago: int = 60) -> None:
+def make_stale(ps: PhotoStore, session_id: str = CHAT, minutes_ago: int = 60) -> None:
     """Backdate a stored photo to push it past the TTL."""
-    ps._states[chat_id].photo.stored_at = (
+    ps._states[session_id].photo.stored_at = (
         datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
     )
 
@@ -49,7 +49,7 @@ async def test_caption_shortcut_calls_llm_immediately(ps, rl, mock_llm):
     """Photo + caption should process in one step, no follow-up needed."""
     resp = await msg(ps, rl, photo=PHOTO, request="split for 3", request_type="text")
 
-    assert resp.text == LLM_REPLY
+    assert resp.text == LLM_REPLY_TEXT
     assert resp.needs_input is False
     mock_llm.assert_called_once()
 
@@ -72,7 +72,7 @@ async def test_text_after_fresh_photo_calls_llm(ps, rl, mock_llm):
     await msg(ps, rl, photo=PHOTO)
     resp = await msg(ps, rl, request="split for 2", request_type="text")
 
-    assert resp.text == LLM_REPLY
+    assert resp.text == LLM_REPLY_TEXT
     assert resp.needs_input is False
 
 
@@ -81,7 +81,7 @@ async def test_voice_after_fresh_photo_passes_audio_bytes(ps, rl, mock_llm):
     await msg(ps, rl, photo=PHOTO)
     resp = await msg(ps, rl, request=voice, request_type="audio", audio_format="ogg")
 
-    assert resp.text == LLM_REPLY
+    assert resp.text == LLM_REPLY_TEXT
     mock_llm.assert_called_once()
     _, kw = mock_llm.call_args
     assert kw["photo_bytes"] == PHOTO
@@ -128,7 +128,7 @@ async def test_yes_after_stale_processes_with_pending_request(ps, rl, mock_llm):
 
     resp = await msg(ps, rl, request="yes", request_type="text")
 
-    assert resp.text == LLM_REPLY
+    assert resp.text == LLM_REPLY_TEXT
     assert resp.needs_input is False
     mock_llm.assert_called_once()
     _, kw = mock_llm.call_args
@@ -178,7 +178,7 @@ async def test_new_photo_while_awaiting_confirmation_processes_pending_immediate
 
     resp = await msg(ps, rl, photo=new_photo)  # new photo, no caption
 
-    assert resp.text == LLM_REPLY
+    assert resp.text == LLM_REPLY_TEXT
     assert resp.needs_input is False
     mock_llm.assert_called_once()
     _, kw = mock_llm.call_args

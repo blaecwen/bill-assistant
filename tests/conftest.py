@@ -18,7 +18,8 @@ from state import PhotoStore, RateLimiter
 
 CHAT = "chat_123"
 PHOTO = b"fake-photo-bytes"
-LLM_REPLY = "Total: $45.00. Split for 3: $15.00 each."
+LLM_REPLY_TEXT = "Total: $45.00. Split for 3: $15.00 each."
+LLM_REPLY = '{"text": "Total: $45.00. Split for 3: $15.00 each.", "request_summary": "Split for 3 people"}'
 
 
 @pytest.fixture
