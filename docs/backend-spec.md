@@ -41,7 +41,15 @@ Calling patterns:
 * Text/voice follow-up: `process_message(session_id, ps, rl, request="split for 3", request_type="text")` → uses stored photo
 * Stale confirmation: user sends "yes" → same path, core handles internally
 
-**State sharing across interfaces:** When the web API server is added, both it and the Telegram bot must share the same `PhotoStore` and `RateLimiter` instances (so the daily limit is global across both). The clean way to do this: the API server's lifespan creates the instances and starts the Telegram bot as a background task, passing the shared objects to both. `bot.py` will expose a factory `build_telegram_app(photo_store, rate_limiter)` rather than being the entry point. No global singletons needed.
+**State sharing across interfaces:** When the web API server is added, shared state flows from a single orchestrator — neither `bot.py` nor `api.py` knows about each other:
+
+```
+main.py  ← creates PhotoStore + RateLimiter, runs everything
+  ├── bot.py  → build_telegram_app(photo_store, rate_limiter)
+  └── api.py  → build_fastapi_app(photo_store, rate_limiter)
+```
+
+`bot.py` becomes a factory module (no `if __name__ == "__main__"`). `api.py` is a pure FastAPI app. `main.py` is the single entry point and the only place state is created. Dockerfile CMD changes to `python main.py`.
 
 ## Stack
 * Python 3.11+, python-telegram-bot v20+ (async, polling mode)
