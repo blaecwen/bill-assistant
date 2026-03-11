@@ -3,8 +3,7 @@ import logging
 import time
 from typing import Optional
 
-from langfuse import observe
-from langfuse.decorators import langfuse_context
+from langfuse import get_client, observe
 from langfuse.openai import AsyncOpenAI
 
 from config import settings
@@ -65,7 +64,7 @@ async def call_llm(
     tags: Optional[list[str]] = None,
     user_id: Optional[str] = None,
 ) -> str:
-    langfuse_context.update_current_trace(
+    get_client().update_current_trace(
         session_id=session_id,
         user_id=user_id,
         tags=tags or [],
