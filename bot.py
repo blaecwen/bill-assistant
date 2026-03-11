@@ -13,17 +13,10 @@ from telegram.ext import (
     filters,
 )
 
-from config import settings
+from app_state import photo_store, rate_limiter
 from core import BillResponse, process_message
-from state import PhotoStore, RateLimiter
 
 logger = logging.getLogger(__name__)
-
-photo_store = PhotoStore(
-    ttl_minutes=settings.photo_ttl_minutes,
-    retain_days=settings.photo_retain_days,
-)
-rate_limiter = RateLimiter(daily_limit=settings.daily_request_limit)
 
 @asynccontextmanager
 async def _typing(bot: Bot, chat_id: str):
@@ -58,8 +51,7 @@ _HELP_TEXT = (
     "   • Split for 3 people\n"
     "   • Alice had the pasta, Bob had the steak\n"
     "   • What's the total?\n\n"
-    "Tip: Add your request as a caption to the photo to skip a step!\n\n"
-    "Your photo is remembered for 30 minutes."
+    "Tip: Add your request as a caption to the photo to skip a step!"
 )
 
 

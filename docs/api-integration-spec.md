@@ -44,6 +44,8 @@ Content-Type: multipart/form-data
 | Safari / iOS | `audio/mp4` (AAC) | Pass through |
 | Other | varies | Convert to WAV via ffmpeg |
 
+The API server must always pass `audio_format` explicitly to `process_message` — never rely on the core's `"ogg"` default, which exists only for the Telegram bot.
+
 ---
 
 ## Response

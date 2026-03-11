@@ -4,26 +4,28 @@
 Telegram bot that receives a photo of a bill + a user request (voice or text), sends both to a multimodal LLM via OpenRouter, and replies with the breakdown.
 
 ## Flow
-1. User sends photo of a bill → bot stores it (per chat_id), replies asking what to do.
+1. User sends photo of a bill → bot stores it (per session_id), replies asking what to do.
 2. User sends voice or text with their request → bot sends stored photo + request to LLM → replies with result.
 Shortcut: If photo has a caption, treat it as the request and process immediately (skip step 2).
-Follow-ups: Photo persists after processing. User can ask more questions about the same bill. Photo expires after PHOTO_TTL_MINUTES (default 30). New photo replaces old.
-No photo stored? → Reply asking for one. Photo past TTL? → Keep it in memory but flag as stale. Ask if they want to reuse the old bill or upload a new one. If reuse, reset the TTL. Hard-delete photos after 7 days.
-Stale photo + pending request flow: User sends text/voice → photo is stale → bot asks "reuse old bill or send a new one?" → if user sends a new photo, treat it as the photo for the request they already sent and process immediately. If user replies "yes" / affirmative text, reset TTL and process with the old photo.
+Follow-ups: Photo persists after processing. User can ask more questions about the same bill. Each follow-up includes the last 10 messages as context. Photo expires after PHOTO_TTL_MINUTES (default 30). New photo replaces old.
+No photo stored? → Reply asking for one. Photo past TTL? → Keep it in memory but flag as stale. Ask if they want to reuse the old bill or upload a new one. If reuse, reset the TTL. Hard-delete photos after 7 days (background cleanup).
+Stale photo + pending request flow: User sends text/voice → photo is stale → bot asks "reuse old bill or send a new one?" → if user sends a new photo, treat it as the photo for the request they already sent and process immediately. If user replies "yes" / affirmative text, reset TTL and process with the old photo. Note: if the original request was audio, it can't be stored as pending (bytes aren't serialisable as text). After stale confirmation, the user is prompted to re-record.
 
 ## Rate Limiting
 Global daily limit: DAILY_REQUEST_LIMIT (default 100) API requests to OpenRouter across all users. Safeguard against unexpected spend. When limit is hit, reply: "Daily limit reached. Try again tomorrow." Track via simple in-memory counter that resets at midnight UTC.
 
 ## Core Module Contract
-The core module exposes a single async function — the interface layer (Telegram, future web/mobile) is responsible for converting its inputs to this format:
+The core module exposes a single async function. Interface layers are responsible for converting their inputs to this format and passing the shared state objects (imported from `app_state`):
 
 ```python
 async def process_message(
-    session_id: str,                     # unique session/user identifier (renamed from chat_id)
+    session_id: str,                     # unique session/user identifier
+    photo_store: PhotoStore,             # shared singleton, imported from app_state
+    rate_limiter: RateLimiter,           # shared singleton, imported from app_state
     photo: bytes | None = None,          # raw image bytes — if provided, stores/replaces
     request: str | bytes | None = None,  # text string OR audio bytes — if provided, triggers processing
     request_type: "text" | "audio" | None = None,
-    audio_format: str | None = None,     # e.g. "ogg", "wav" — required if audio
+    audio_format: str | None = None,     # e.g. "ogg", "webm" — required if audio
 ) -> BillResponse:
 
 @dataclass
@@ -34,19 +36,19 @@ class BillResponse:
 ```
 
 Calling patterns:
-* Photo only (no caption): `process_message(chat_id, photo=bytes)` → stores photo, returns prompt asking for request
-* Photo + caption: `process_message(chat_id, photo=bytes, request="split for 3", request_type="text")` → stores + processes
-* Text/voice follow-up: `process_message(chat_id, request="split for 3", request_type="text")` → uses stored photo
+* Photo only (no caption): `process_message(session_id, ps, rl, photo=bytes)` → stores photo, returns prompt asking for request
+* Photo + caption: `process_message(session_id, ps, rl, photo=bytes, request="split for 3", request_type="text")` → stores + processes
+* Text/voice follow-up: `process_message(session_id, ps, rl, request="split for 3", request_type="text")` → uses stored photo
 * Stale confirmation: user sends "yes" → same path, core handles internally
 
-State management (photo storage, TTL, stale checks, pending requests) lives inside the core. Interface layers don't manage state — they just pass inputs and display the response.
+Shared state (`PhotoStore`, `RateLimiter`) is instantiated once in `app_state.py` and imported by all interface layers. This ensures Telegram and web API share the same rate limit counter and photo storage within a single process.
 
 ## Stack
 * Python 3.11+, python-telegram-bot v20+ (async, polling mode)
 * FastAPI + uvicorn — web API server for the `POST /api/process` endpoint
 * OpenRouter API via openai Python SDK (OpenRouter is OpenAI-compatible — switching models = changing one env var, no code changes)
 * Langfuse for prompt management — system prompt fetched from Langfuse, cached locally for PROMPT_CACHE_TTL_MINUTES (default 10)
-* Single multimodal LLM call: image + voice/text sent together in one request. Audio sent via input_audio content type (Telegram voice = .ogg). Configured model must support both vision and audio input. LLM returns structured JSON (`request_summary` + `text`); core parses it before returning `BillResponse`.
+* Single multimodal LLM call: image + voice/text sent together in one request. Audio sent via input_audio content type. Configured model must support both vision and audio input. LLM returns structured JSON (`request_summary` + `text`); core parses it before returning `BillResponse`.
 
 ## Env Vars
 
@@ -70,16 +72,16 @@ State management (photo storage, TTL, stale checks, pending requests) lives insi
 ## Logging
 * Use Python logging with configurable level via LOG_LEVEL env var (default INFO).
 * DEBUG: raw LLM request/response payloads, state transitions
-* INFO: every incoming message (type, chat_id, timestamp), every LLM call (model, latency), photo stored/reused/expired/deleted
+* INFO: every incoming message (type, session_id, timestamp), every LLM call (model, latency), photo stored/reused/expired/deleted
 * WARNING: stale photo reuse, audio format issues
 * ERROR: API failures, unexpected exceptions
-* All processed photos should be logged (chat_id, timestamp, file size) for auditing.
+* All processed photos should be logged (session_id, timestamp, file size) for auditing.
 
 ## Tracing
 Use Langfuse tracing (@observe decorator) on all LLM calls. This gives cost tracking, latency, and full input/output history in the Langfuse dashboard — comes nearly free since the SDK is already integrated for prompt management.
 
 ## System Prompt
-Managed in Langfuse (prompt name: bill-assistant). Initial version to seed:
+Managed in Langfuse (prompt name: bill-assistant). LLM must return a JSON response with two fields: `request_summary` (1-sentence clean summary of what the user asked, no filler words) and `text` (the answer). Initial version to seed:
 
 ```
 You are a bill-splitting assistant. You receive a photo of a restaurant or store bill and a user request.
@@ -94,13 +96,17 @@ Rules:
 - Use the currency on the bill.
 - Split tax/service proportionally unless told otherwise.
 - If you can't read something, say so — don't guess.
-- Keep it concise. No markdown tables. Use plain text with line breaks.
+- Use basic HTML formatting only: <b>bold</b> for emphasis, line breaks between items. No tables.
 - If the request is ambiguous, ask a clarifying question.
+
+Respond in JSON: {"request_summary": "...", "text": "..."}
 ```
+
+Formatting uses basic HTML tags (`<b>`, line breaks) — compatible with Telegram HTML parse mode and web rendering. No markdown, no tables.
 
 ## Deployment
 Runs on Coolify (Docker-based). Repo must include:
-* Dockerfile — Python 3.11-slim base, install ffmpeg (for potential audio conversion), copy code, pip install, CMD ["python", "bot.py"]
+* Dockerfile — Python 3.11-slim base, install ffmpeg (for audio format conversion), copy code, pip install, CMD to start both bot and API server in the same process
 * .env.example — template with all env vars listed above
 * Coolify will inject env vars at runtime — no secrets in the repo
 
@@ -110,15 +116,14 @@ Runs on Coolify (Docker-based). Repo must include:
 - `chat_id` → `session_id` in core signature and all state management (pending implementation)
 - `BillResponse` gains `request_summary: str | None = None` — LLM-generated, populated on audio requests
 - LLM now returns structured JSON; core parses it before returning `BillResponse`
-- System prompt: formatting instruction made interface-agnostic (removed Telegram reference)
+- System prompt: formatting updated to HTML tags (works for both Telegram and web); JSON response format added
 - Added FastAPI + uvicorn + python-multipart for web API server
+- Introduced `app_state.py` — shared `PhotoStore` and `RateLimiter` singletons imported by all interface layers
+- Conversation history (10-message cap) already implemented — removed from Future
 - Web API layer details: see [API Integration Spec](api-integration-spec.md)
 
 ## Future
 * Persistent storage for photos/state (survive restarts, make 7-day retention real)
 * Whisper fallback for vision-only models without audio support
-* Interface-agnostic formatting (remove Telegram-specific instructions from prompt)
-* Mobile app / web frontend using the same core module
-* Conversation history — send previous Q&A as context for follow-ups on the same bill
 * Multi-page bills — support multiple photos for a single bill
 * Group chat support — multiple people claim items in real time
