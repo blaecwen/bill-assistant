@@ -53,7 +53,7 @@ _HELP_TEXT = (
     "   • Split for 3 people\n"
     "   • Alice had the pasta, Bob had the steak\n"
     "   • What's the total?\n\n"
-    "Tip: Add your request as a caption to the photo to skip a step!"
+    "Tip: You can also send a voice message — just describe the bill and I'll handle the rest!"
 )
 
 
