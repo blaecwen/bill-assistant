@@ -83,6 +83,8 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
                 photo=photo_bytes,
                 request=caption,
                 request_type="text" if caption else None,
+                source="telegram",
+                user_id=chat_id,
             )
         await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
@@ -101,6 +103,8 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
                 request=voice_bytes,
                 request_type="audio",
                 audio_format="ogg",
+                source="telegram",
+                user_id=chat_id,
             )
         await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 
@@ -120,6 +124,8 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
                 rate_limiter=rate_limiter,
                 request=text,
                 request_type="text",
+                source="telegram",
+                user_id=chat_id,
             )
         await update.message.reply_text(response.text, parse_mode=ParseMode.HTML)
 

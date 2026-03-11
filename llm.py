@@ -4,6 +4,7 @@ import time
 from typing import Optional
 
 from langfuse import observe
+from langfuse.decorators import langfuse_context
 from langfuse.openai import AsyncOpenAI
 
 from config import settings
@@ -53,14 +54,22 @@ def _build_user_content(
     return content
 
 
-@observe(as_type="generation")
+@observe(name="bill-split")
 async def call_llm(
     photo_bytes: bytes,
     request_text: Optional[str] = None,
     audio_bytes: Optional[bytes] = None,
     audio_format: str = "ogg",
     history: Optional[list[HistoryEntry]] = None,
+    session_id: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    user_id: Optional[str] = None,
 ) -> str:
+    langfuse_context.update_current_trace(
+        session_id=session_id,
+        user_id=user_id,
+        tags=tags or [],
+    )
     langfuse_prompt = prompt_manager.get_langfuse_prompt_object()
     system_prompt_text = langfuse_prompt.compile()
 
@@ -89,6 +98,7 @@ async def call_llm(
             model=settings.llm_model,
             messages=messages,
             response_format={"type": "json_object"},
+            langfuse_prompt=langfuse_prompt,
         )
     except Exception as exc:
         logger.error("LLM API call failed: %s", exc)

@@ -44,6 +44,7 @@ def build_fastapi_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Fas
     @app.post("/api/process")
     async def api_process(
         session_id: Optional[str] = Form(None),
+        user_id: Optional[str] = Form(None),
         photo: Optional[UploadFile] = File(None),
         audio: Optional[UploadFile] = File(None),
     ):
@@ -77,6 +78,8 @@ def build_fastapi_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Fas
                 request_type="audio" if audio_bytes is not None else None,
                 audio_format=audio_format,
                 skip_stale_check=True,
+                source="web",
+                user_id=user_id,
             )
         except Exception as exc:
             logger.error("Unexpected error in /api/process: %s", exc)

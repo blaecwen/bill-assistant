@@ -60,6 +60,8 @@ async def process_message(
     request_type: Optional[Literal["text", "audio"]] = None,
     audio_format: Optional[str] = None,
     skip_stale_check: bool = False,
+    source: str = "telegram",
+    user_id: Optional[str] = None,
 ) -> BillResponse:
     # ------------------------------------------------------------------ #
     # CASE A: Photo provided (with or without request)                     #
@@ -102,7 +104,7 @@ async def process_message(
 
             return await _call_and_respond(
                 session_id, photo, effective_request, effective_request_type,
-                effective_audio_format, photo_store, user_hist,
+                effective_audio_format, photo_store, user_hist, source, user_id,
             )
 
         photo_store.add_to_history(session_id, "user", "[photo]")
@@ -140,7 +142,7 @@ async def process_message(
 
                 return await _call_and_respond(
                     session_id, stored.data, pending, "text", None,
-                    photo_store, pending,
+                    photo_store, pending, source, user_id,
                 )
             else:
                 # Arbitrary text while waiting — re-prompt
@@ -179,7 +181,7 @@ async def process_message(
         )
         return await _call_and_respond(
             session_id, stored.data, request, request_type, audio_format,
-            photo_store, user_hist,
+            photo_store, user_hist, source, user_id,
         )
 
     # ------------------------------------------------------------------ #
@@ -196,6 +198,8 @@ async def _call_and_respond(
     audio_format: Optional[str],
     photo_store: PhotoStore,
     user_history_text: str,
+    source: str = "telegram",
+    user_id: Optional[str] = None,
 ) -> BillResponse:
     request_text: Optional[str] = None
     audio_bytes: Optional[bytes] = None
@@ -214,6 +218,9 @@ async def _call_and_respond(
             audio_bytes=audio_bytes,
             audio_format=audio_format or "ogg",
             history=history,
+            session_id=session_id,
+            tags=[source],
+            user_id=user_id,
         )
     except LLMError:
         logger.error("LLM error for session_id=%s", session_id)
