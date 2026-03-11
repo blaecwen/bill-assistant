@@ -13,10 +13,17 @@ from telegram.ext import (
     filters,
 )
 
-from app_state import photo_store, rate_limiter
+from config import settings
 from core import BillResponse, process_message
+from state import PhotoStore, RateLimiter
 
 logger = logging.getLogger(__name__)
+
+photo_store = PhotoStore(
+    ttl_minutes=settings.photo_ttl_minutes,
+    retain_days=settings.photo_retain_days,
+)
+rate_limiter = RateLimiter(daily_limit=settings.daily_request_limit)
 
 @asynccontextmanager
 async def _typing(bot: Bot, chat_id: str):

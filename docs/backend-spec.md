@@ -15,13 +15,13 @@ Stale photo + pending request flow: User sends text/voice → photo is stale →
 Global daily limit: DAILY_REQUEST_LIMIT (default 100) API requests to OpenRouter across all users. Safeguard against unexpected spend. When limit is hit, reply: "Daily limit reached. Try again tomorrow." Track via simple in-memory counter that resets at midnight UTC.
 
 ## Core Module Contract
-The core module exposes a single async function. Interface layers are responsible for converting their inputs to this format and passing the shared state objects (imported from `app_state`):
+The core module exposes a single async function. Interface layers create `PhotoStore` and `RateLimiter` and pass them in:
 
 ```python
 async def process_message(
     session_id: str,                     # unique session/user identifier
-    photo_store: PhotoStore,             # shared singleton, imported from app_state
-    rate_limiter: RateLimiter,           # shared singleton, imported from app_state
+    photo_store: PhotoStore,             # caller-owned, passed explicitly
+    rate_limiter: RateLimiter,           # caller-owned, passed explicitly
     photo: bytes | None = None,          # raw image bytes — if provided, stores/replaces
     request: str | bytes | None = None,  # text string OR audio bytes — if provided, triggers processing
     request_type: "text" | "audio" | None = None,
@@ -41,7 +41,7 @@ Calling patterns:
 * Text/voice follow-up: `process_message(session_id, ps, rl, request="split for 3", request_type="text")` → uses stored photo
 * Stale confirmation: user sends "yes" → same path, core handles internally
 
-Shared state (`PhotoStore`, `RateLimiter`) is instantiated once in `app_state.py` and imported by all interface layers. This ensures Telegram and web API share the same rate limit counter and photo storage within a single process.
+**State sharing across interfaces:** When the web API server is added, both it and the Telegram bot must share the same `PhotoStore` and `RateLimiter` instances (so the daily limit is global across both). The clean way to do this: the API server's lifespan creates the instances and starts the Telegram bot as a background task, passing the shared objects to both. `bot.py` will expose a factory `build_telegram_app(photo_store, rate_limiter)` rather than being the entry point. No global singletons needed.
 
 ## Stack
 * Python 3.11+, python-telegram-bot v20+ (async, polling mode)
@@ -118,7 +118,6 @@ Runs on Coolify (Docker-based). Repo must include:
 - LLM now returns structured JSON; core parses it before returning `BillResponse`
 - System prompt: formatting updated to HTML tags (works for both Telegram and web); JSON response format added
 - Added FastAPI + uvicorn + python-multipart for web API server
-- Introduced `app_state.py` — shared `PhotoStore` and `RateLimiter` singletons imported by all interface layers
 - Conversation history (10-message cap) already implemented — removed from Future
 - Web API layer details: see [API Integration Spec](api-integration-spec.md)
 
