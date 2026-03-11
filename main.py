@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 import uvicorn
+from langfuse import get_client
 
 from api import build_fastapi_app
 from bot import build_telegram_app
@@ -40,11 +41,13 @@ async def _run(telegram_app, fastapi_app) -> None:
 
 
 def main() -> None:
+    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
     logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+        level=log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     logging.getLogger("uvicorn.access").addFilter(_SuppressHealthCheck())
+    logging.getLogger("langfuse").setLevel(log_level)
 
     photo_store = PhotoStore(
         ttl_minutes=settings.photo_ttl_minutes,
@@ -63,10 +66,20 @@ def main() -> None:
         settings.log_level,
     )
 
+    langfuse = get_client()
+    if langfuse.auth_check():
+        logger.info("Langfuse connected ok")
+    else:
+        logger.warning("Langfuse auth failed — tracing will be disabled")
+
     telegram_app = build_telegram_app(photo_store, rate_limiter)
     fastapi_app = build_fastapi_app(photo_store, rate_limiter)
 
-    asyncio.run(_run(telegram_app, fastapi_app))
+    try:
+        asyncio.run(_run(telegram_app, fastapi_app))
+    finally:
+        logger.info("Flushing Langfuse traces...")
+        get_client().flush()
 
 
 if __name__ == "__main__":
