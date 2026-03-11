@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from core import process_message
 from state import PhotoStore, RateLimiter
@@ -33,9 +33,13 @@ def build_fastapi_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Fas
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_methods=["POST"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
+
+    @app.get("/health")
+    async def health():
+        return Response(status_code=200)
 
     @app.post("/api/process")
     async def api_process(
