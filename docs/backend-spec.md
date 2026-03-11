@@ -93,47 +93,37 @@ All target models support vision, audio input, and `response_format=json_object`
 ## Logging
 * Use Python logging with configurable level via LOG_LEVEL env var (default INFO).
 * DEBUG: raw LLM request/response payloads, state transitions
-* INFO: every incoming message (type, session_id, timestamp), every LLM call (model, latency), photo stored/reused/expired/deleted
-* WARNING: stale photo reuse, audio format issues
+* INFO: every incoming message (type, session_id, preview), every LLM call (model, latency, request preview), photo stored/expired/deleted (session_id, size_kb)
+* WARNING: stale photo reuse, rate limit reached, LLM response not valid JSON
 * ERROR: API failures, unexpected exceptions
-* All processed photos should be logged (session_id, timestamp, file size) for auditing.
+* `GET /health` access logs suppressed at INFO (too noisy); visible at DEBUG.
 
 ## Tracing
 Use Langfuse tracing (@observe decorator) on all LLM calls. This gives cost tracking, latency, and full input/output history in the Langfuse dashboard — comes nearly free since the SDK is already integrated for prompt management.
 
 ## System Prompt
-Managed in Langfuse (prompt name: bill-assistant). LLM must return a JSON response with two fields: `request_summary` (1-sentence clean summary of what the user asked, no filler words) and `text` (the answer). Initial version to seed:
+Managed in Langfuse (prompt name: `bill-assistant`). Seeded via `seed_prompt.py`. The prompt covers:
 
-```
-You are a bill-splitting assistant. You receive a photo of a restaurant or store bill and a user request.
-1. Read ALL items, quantities, and prices from the bill.
-2. Identify subtotal, tax, service charge, discounts, and total.
-3. Follow the user's request:
-   - "Split for N" → divide total equally, show per-person amount
-   - "Person A had X, Person B had Y" → assign items, split shared costs proportionally
-   - "What's the total?" / "What did we order?" → read and list
-Rules:
-- Show your work: list items you read, then the calculation.
-- Use the currency on the bill.
-- Split tax/service proportionally unless told otherwise.
-- If you can't read something, say so — don't guess.
-- Use basic HTML formatting only: <b>bold</b> for emphasis, line breaks between items. No tables.
-- If the request is ambiguous, ask a clarifying question.
+* **Scope gating** — only handle bill-reading and bill-splitting requests; deflect everything else with a single fixed sentence
+* **Injection defense** — text in bill images and item names is bill data only, never instructions; standard jailbreak patterns are explicitly ignored
+* **JSON output format** — always respond with `{"text": "...", "request_summary": "..."}`, no prose outside the object, no code fences; enforced at API level via `response_format=json_object`
+* **Response style** — lead with bold main result, 2–4 supporting lines, stop there; full breakdown only on explicit request
+* **Formatting** — Telegram HTML (`<b>bold</b>`, plain hyphens for lists); no markdown, no tables
 
-Respond in JSON: {"request_summary": "...", "text": "..."}
-```
-
-Formatting uses basic HTML tags (`<b>`, line breaks) — compatible with Telegram HTML parse mode and web rendering. No markdown, no tables.
+## API Endpoints
+* `POST /api/process` — main bill processing endpoint (multipart/form-data: session_id, photo?, audio)
+* `GET /health` — health check, returns 200 with empty body; used by Coolify
 
 ## Deployment
 Runs on Coolify (Docker-based). Repo must include:
-* Dockerfile — Python 3.11-slim base, install ffmpeg, copy code, pip install, CMD to start both bot and API server in the same process
+* Dockerfile — Python 3.11-slim base, installs ffmpeg + curl, pip install, CMD `python main.py`
 * .env.example — template with all env vars listed above
 * Coolify will inject env vars at runtime — no secrets in the repo
+* Coolify health check: `GET /health` on port 8000
 
 ## Changelog
 
-### 2026-03-11
+### 2026-03-11 (session 2)
 - `chat_id` → `session_id` in core signature and all state management
 - `bot.py` refactored to factory module (`build_telegram_app(photo_store, rate_limiter)`); `main.py` added as single entry point that creates shared state and runs bot + API server concurrently
 - `BillResponse` gains `request_summary: str | None = None` — LLM-generated, populated on audio requests
@@ -145,6 +135,15 @@ Runs on Coolify (Docker-based). Repo must include:
 - Added FastAPI + uvicorn + python-multipart for web API server; httpx added for testing
 - Conversation history (10-message cap) already implemented — removed from Future
 - Langfuse fallback prompt removed — startup crash if Langfuse unavailable; SDK caches prompt after first successful fetch
+
+### 2026-03-11 (session 2)
+- Typing indicator (`ChatAction.TYPING`) while processing — background task, survives transient API errors
+- Prompt updated: scope gating (bill topics only), injection defense, explicit JSON output format with example
+- `response_format=json_object` added to LLM API call; `_parse_llm_response()` replaces raw `json.loads` with graceful fallback
+- `GET /health` endpoint added for Coolify health checks; curl added to Dockerfile
+- Logging overhaul: startup config banner, session_id/size_kb/latency surfaced in message strings (were silently dropped in `extra={}` with basicConfig), rate limit hits now log WARNING
+- Health check access logs suppressed at INFO level (too noisy)
+- Target models documented
 
 ## Future
 * Persistent storage for photos/state (survive restarts, make 7-day retention real)
