@@ -117,7 +117,7 @@ Formatting uses basic HTML tags (`<b>`, line breaks) — compatible with Telegra
 
 ## Deployment
 Runs on Coolify (Docker-based). Repo must include:
-* Dockerfile — Python 3.11-slim base, install ffmpeg (for audio format conversion), copy code, pip install, CMD to start both bot and API server in the same process
+* Dockerfile — Python 3.11-slim base, install ffmpeg, copy code, pip install, CMD to start both bot and API server in the same process
 * .env.example — template with all env vars listed above
 * Coolify will inject env vars at runtime — no secrets in the repo
 

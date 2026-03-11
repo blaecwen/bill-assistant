@@ -66,7 +66,7 @@ Mobile-first web app. User photographs a bill, records a voice request (e.g. "sp
 
 ## Backend Integration
 
-**Not built yet.** The existing backend runs as a Telegram bot with a `process_message` core module. We'll add a simple API server wrapping the same core.
+`POST /api/process` is implemented. Same `process_message` core as the Telegram bot — shared state, shared rate limiter.
 
 See [API Integration Spec](api-integration-spec.md) for the full contract. Summary:
 
@@ -90,7 +90,7 @@ Errors:
 - First request sends photo + audio. Follow-ups send just audio (backend remembers photo by `session_id`).
 - New photo upload resets `session_id`, which also resets backend state for that session.
 
-**For MVP:** Stub the API with a mock response after a 2-second delay so the full UI flow works without a backend.
+**For development:** Stub the API with a mock response after a 2-second delay so the full UI flow works without a running backend.
 
 ## Changelog
 

@@ -19,10 +19,10 @@ from core import (
 )
 from llm import LLMError
 from state import PhotoStore, RateLimiter
-from tests.conftest import CHAT, PHOTO, LLM_REPLY_TEXT
+from tests.conftest import SESSION, PHOTO, LLM_REPLY_TEXT
 
 
-def make_stale(ps: PhotoStore, session_id: str = CHAT, minutes_ago: int = 60) -> None:
+def make_stale(ps: PhotoStore, session_id: str = SESSION, minutes_ago: int = 60) -> None:
     """Backdate a stored photo to push it past the TTL."""
     ps._states[session_id].photo.stored_at = (
         datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
@@ -30,8 +30,8 @@ def make_stale(ps: PhotoStore, session_id: str = CHAT, minutes_ago: int = 60) ->
 
 
 async def msg(ps, rl, **kwargs):
-    """Thin wrapper to avoid repeating CHAT in every call."""
-    return await process_message(CHAT, ps, rl, **kwargs)
+    """Thin wrapper to avoid repeating SESSION in every call."""
+    return await process_message(SESSION, ps, rl, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ async def test_stale_photo_stores_pending_request(ps, rl, mock_llm):
     make_stale(ps)
     await msg(ps, rl, request="split for 4", request_type="text")
 
-    assert ps.get_pending_request(CHAT) == "split for 4"
+    assert ps.get_pending_request(SESSION) == "split for 4"
 
 
 async def test_yes_after_stale_processes_with_pending_request(ps, rl, mock_llm):
@@ -161,7 +161,7 @@ async def test_non_affirmative_during_confirmation_reprompts_and_preserves_pendi
     resp = await msg(ps, rl, request="hmm what was the bill again", request_type="text")
 
     assert resp.needs_input is True
-    assert ps.get_pending_request(CHAT) == "split for 4"  # not lost
+    assert ps.get_pending_request(SESSION) == "split for 4"  # not lost
     mock_llm.assert_not_called()
 
 
@@ -214,10 +214,10 @@ async def test_rate_limit_blocks_stale_confirmation(mock_llm):
     ps = PhotoStore(ttl_minutes=30, retain_days=7)
     rl = RateLimiter(daily_limit=0)
 
-    await process_message(CHAT, ps, rl, photo=PHOTO)
+    await process_message(SESSION, ps, rl, photo=PHOTO)
     make_stale(ps)
-    await process_message(CHAT, ps, rl, request="split for 2", request_type="text")
-    resp = await process_message(CHAT, ps, rl, request="yes", request_type="text")
+    await process_message(SESSION, ps, rl, request="split for 2", request_type="text")
+    resp = await process_message(SESSION, ps, rl, request="yes", request_type="text")
 
     assert resp.text == _RATE_LIMIT_MSG
     mock_llm.assert_not_called()
@@ -249,7 +249,7 @@ async def test_llm_error_does_not_pollute_history(ps, rl):
         await msg(ps, rl, request="split for 2", request_type="text")  # LLM fails
 
     # Only the photo-intake exchange must be present; the failed request leaves no trace
-    history = ps.get_history(CHAT)
+    history = ps.get_history(SESSION)
     assert len(history) == 2
     assert history[0].content == "[photo]"
     assert history[1].role == "assistant"

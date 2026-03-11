@@ -28,7 +28,7 @@ async def _typing(bot: Bot, chat_id: str):
         try:
             while True:
                 try:
-                    await bot.send_chat_action(session_id=chat_id, action=ChatAction.TYPING)
+                    await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
                 except Exception:
                     pass  # don't let a transient API error kill the task
                 await asyncio.sleep(4)
@@ -66,7 +66,7 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
         msg = update.message
         logger.info(
             "Incoming photo",
-            extra={"chat_id": chat_id, "has_caption": bool(msg.caption)},
+            extra={"session_id": chat_id, "has_caption": bool(msg.caption)},
         )
 
         photo_file = await context.bot.get_file(msg.photo[-1].file_id)
@@ -87,7 +87,7 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
 
     async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id = str(update.effective_chat.id)
-        logger.info("Incoming voice message", extra={"chat_id": chat_id})
+        logger.info("Incoming voice message", extra={"session_id": chat_id})
 
         voice_file = await context.bot.get_file(update.message.voice.file_id)
         voice_bytes = bytes(await voice_file.download_as_bytearray())
@@ -108,7 +108,7 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
         text = update.message.text
         logger.info(
             "Incoming text message",
-            extra={"chat_id": chat_id, "length": len(text)},
+            extra={"session_id": chat_id, "length": len(text)},
         )
 
         async with _typing(context.bot, chat_id):
