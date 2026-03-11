@@ -1,6 +1,6 @@
 # Bill Assistant
 
-Telegram bot that splits bills. Send a photo of a receipt, ask a question in text or voice, get the breakdown.
+Splits bills via Telegram and a web API. Send a photo of a receipt + a text or voice request, get the breakdown.
 
 ## Setup
 
@@ -13,8 +13,8 @@ pip install -r requirements.txt
 # Create the system prompt in Langfuse (run once)
 python seed_prompt.py
 
-# Start the bot
-python bot.py
+# Start bot + API server
+python main.py
 ```
 
 ## Usage
@@ -37,7 +37,9 @@ The photo stays active for 30 minutes. Follow-up questions reuse the same bill.
 | `prompts.py` | Langfuse prompt management |
 | `llm.py` | Multimodal OpenRouter call + Langfuse tracing |
 | `core.py` | `process_message()` — all business logic |
-| `bot.py` | Telegram handlers, entry point |
+| `bot.py` | Telegram handlers (factory, no entry point) |
+| `api.py` | FastAPI web server (`POST /api/process`, `GET /health`) |
+| `main.py` | Entry point — creates shared state, runs bot + API |
 | `seed_prompt.py` | One-off script to create Langfuse prompt |
 
 ## Key env vars
@@ -55,4 +57,4 @@ Point Coolify at this repo. It builds the `Dockerfile` and injects env vars at r
 
 ## Extending
 
-`core.process_message()` is interface-agnostic — it takes raw bytes and strings, returns a `BillResponse`. Wire any new interface (web, mobile) by calling it directly. See `SPEC.md` for the full contract.
+`core.process_message()` is interface-agnostic — it takes raw bytes and strings, returns a `BillResponse`. Wire any new interface by calling it directly. See `docs/backend-spec.md` for the full contract.
