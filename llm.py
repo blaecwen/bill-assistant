@@ -20,6 +20,10 @@ class LLMError(Exception):
 _client = AsyncOpenAI(
     api_key=settings.openrouter_api_key,
     base_url="https://openrouter.ai/api/v1",
+    default_headers={
+        "HTTP-Referer": "https://split-my-bill.zorz.io/",
+        "X-Title": "Split My Bill",
+    },
 )
 
 
