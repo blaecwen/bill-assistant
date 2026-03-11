@@ -3,7 +3,6 @@ import logging
 import time
 from typing import Optional
 
-from langfuse import get_client, observe
 from langfuse.openai import AsyncOpenAI
 
 from config import settings
@@ -53,7 +52,6 @@ def _build_user_content(
     return content
 
 
-@observe(name="bill-split")
 async def call_llm(
     photo_bytes: bytes,
     request_text: Optional[str] = None,
@@ -64,11 +62,6 @@ async def call_llm(
     tags: Optional[list[str]] = None,
     user_id: Optional[str] = None,
 ) -> str:
-    get_client().update_current_trace(
-        session_id=session_id,
-        user_id=user_id,
-        tags=tags or [],
-    )
     langfuse_prompt = prompt_manager.get_langfuse_prompt_object()
     system_prompt_text = langfuse_prompt.compile()
 
@@ -98,6 +91,9 @@ async def call_llm(
             messages=messages,
             response_format={"type": "json_object"},
             langfuse_prompt=langfuse_prompt,
+            session_id=session_id,
+            user_id=user_id,
+            tags=tags or [],
         )
     except Exception as exc:
         logger.error("LLM API call failed: %s", exc)
