@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from core import process_message
@@ -29,6 +30,12 @@ def _infer_audio_format(content_type: Optional[str]) -> str:
 
 def build_fastapi_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> FastAPI:
     app = FastAPI()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["POST"],
+        allow_headers=["*"],
+    )
 
     @app.post("/api/process")
     async def api_process(
@@ -40,6 +47,12 @@ def build_fastapi_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Fas
             return JSONResponse(
                 status_code=400,
                 content={"error": "bad_request", "detail": "session_id is required"},
+            )
+
+        if audio is None:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "bad_request", "detail": "audio is required"},
             )
 
         photo_bytes = await photo.read() if photo else None

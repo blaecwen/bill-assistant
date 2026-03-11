@@ -26,6 +26,7 @@ async def process_message(
     request: str | bytes | None = None,  # text string OR audio bytes — if provided, triggers processing
     request_type: "text" | "audio" | None = None,
     audio_format: str | None = None,     # e.g. "ogg", "webm" — required if audio
+    skip_stale_check: bool = False,      # web API passes True to bypass stale photo confirmation flow
 ) -> BillResponse:
 
 @dataclass
@@ -33,6 +34,8 @@ class BillResponse:
     text: str                            # message to show the user
     needs_input: bool                    # True = waiting for more input (e.g. stale confirmation, no photo yet)
     request_summary: str | None = None  # LLM-generated summary of user's audio request
+    rate_limited: bool = False           # True if daily request limit was hit
+    llm_error: bool = False              # True if LLM call failed
 ```
 
 Calling patterns:
@@ -121,13 +124,17 @@ Runs on Coolify (Docker-based). Repo must include:
 ## Changelog
 
 ### 2026-03-11
-- `chat_id` → `session_id` in core signature and all state management (pending implementation)
+- `chat_id` → `session_id` in core signature and all state management
+- `bot.py` refactored to factory module (`build_telegram_app(photo_store, rate_limiter)`); `main.py` added as single entry point that creates shared state and runs bot + API server concurrently
 - `BillResponse` gains `request_summary: str | None = None` — LLM-generated, populated on audio requests
+- `BillResponse` gains `rate_limited: bool` and `llm_error: bool` — API layer maps them to 429/500 without string comparisons
+- `process_message` gains `skip_stale_check: bool = False` — web API passes `True` to bypass stale photo confirmation flow
 - LLM now returns structured JSON; core parses it before returning `BillResponse`
 - System prompt: formatting updated to HTML tags (works for both Telegram and web); JSON response format added
-- Added FastAPI + uvicorn + python-multipart for web API server
+- `api.py` added: `POST /api/process` endpoint with CORS, multipart form handling, audio format inference, session validation
+- Added FastAPI + uvicorn + python-multipart for web API server; httpx added for testing
 - Conversation history (10-message cap) already implemented — removed from Future
-- Web API layer details: see [API Integration Spec](api-integration-spec.md)
+- Langfuse fallback prompt removed — startup crash if Langfuse unavailable; SDK caches prompt after first successful fetch
 
 ## Future
 * Persistent storage for photos/state (survive restarts, make 7-day retention real)

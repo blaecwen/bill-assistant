@@ -6,9 +6,6 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-_FALLBACK_PROMPT = "You are a bill-splitting assistant."
-
-
 class PromptManager:
     def __init__(self) -> None:
         self._client = Langfuse(
@@ -22,7 +19,6 @@ class PromptManager:
         return self._client.get_prompt(
             "bill-assistant",
             cache_ttl_seconds=self._cache_ttl_seconds,
-            fallback=_FALLBACK_PROMPT,
         )
 
 

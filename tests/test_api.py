@@ -93,6 +93,22 @@ async def test_missing_session_id_returns_400(ps):
 
 
 # ---------------------------------------------------------------------------
+# Scenario 3b: Missing audio → 400
+# ---------------------------------------------------------------------------
+
+async def test_missing_audio_returns_400(ps):
+    rl = RateLimiter(daily_limit=100)
+    async with _client(ps, rl) as c:
+        resp = await c.post(
+            "/api/process",
+            data={"session_id": SESSION},
+            files={"photo": ("photo.jpg", PHOTO, "image/jpeg")},
+        )
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "bad_request"
+
+
+# ---------------------------------------------------------------------------
 # Scenario 4: Audio with no photo stored → 200, response asks for photo
 # ---------------------------------------------------------------------------
 

@@ -1,12 +1,10 @@
 # API Integration Spec
 
-Web API contract for `POST /api/process`. Will be merged into backend/frontend specs post-implementation.
+Web API contract for `POST /api/process`.
 
 ---
 
-## Naming
-
-`chat_id` → `session_id` throughout core and all layers.
+## Session IDs
 
 - **Web:** UUID v4, generated on page load, reset on new photo upload
 - **Telegram:** `str(telegram_chat_id)`
@@ -26,13 +24,14 @@ Content-Type: multipart/form-data
 | `photo` | file (JPEG) | Conditional | First request only; omit on follow-ups |
 | `audio` | file | Yes (MVP) | Format inferred from multipart `Content-Type` — no separate format field |
 
-## Stack additions
+## Dependencies
 
 | Package | Version | Purpose |
 |---|---|---|
 | `fastapi` | `0.135.*` | Web API framework |
 | `uvicorn[standard]` | `0.41.*` | ASGI server |
 | `python-multipart` | `0.0.22` | Multipart form / file upload parsing (FastAPI dependency) |
+| `httpx` | `0.28.*` | Async HTTP client used in tests (`ASGITransport`) |
 
 ---
 
@@ -99,14 +98,16 @@ LLM returns JSON; core parses it before populating `BillResponse`.
 
 ---
 
-## `BillResponse` changes
+## `BillResponse`
 
 ```python
 @dataclass
 class BillResponse:
     text: str
-    needs_input: bool                    # internal, Telegram layer only — not in HTTP API
+    needs_input: bool = False            # internal, Telegram layer only — not in HTTP API
     request_summary: str | None = None  # populated when audio was processed
+    rate_limited: bool = False           # API layer maps to 429
+    llm_error: bool = False             # API layer maps to 500
 ```
 
 ---
@@ -120,6 +121,7 @@ Key integration tests for `POST /api/process`. All use a real (or stubbed) `Phot
 | 1 | Photo + audio → 200 | `session_id`, `photo`, `audio` (webm) | `200`, `text` non-empty, `request_summary` non-null |
 | 2 | Audio follow-up (no photo in request) | `session_id` only, `audio` | `200`, uses stored photo from scenario 1 |
 | 3 | Missing `session_id` → 400 | no `session_id` | `400`, `{"error": "bad_request"}` |
+| 3b | Missing `audio` → 400 | `session_id` + `photo`, no `audio` | `400`, `{"error": "bad_request"}` |
 | 4 | Audio with no photo stored → ask for photo | `session_id` (fresh), `audio` | `200`, response asks user to send a photo |
 | 5 | Daily limit reached → 429 | `RateLimiter(daily_limit=0)`, valid request | `429`, `{"error": "daily_limit_reached"}` |
 | 6 | LLM failure → 500 | LLM stubbed to raise `LLMError` | `500`, `{"error": "server_error"}` |
