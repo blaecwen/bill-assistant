@@ -59,7 +59,17 @@ main.py  ← creates PhotoStore + RateLimiter, runs everything
 * FastAPI + uvicorn — web API server for the `POST /api/process` endpoint
 * OpenRouter API via openai Python SDK (OpenRouter is OpenAI-compatible — switching models = changing one env var, no code changes)
 * Langfuse for prompt management — system prompt fetched from Langfuse, cached locally for PROMPT_CACHE_TTL_MINUTES (default 10)
-* Single multimodal LLM call: image + voice/text sent together in one request. Audio sent via input_audio content type. Configured model must support both vision and audio input. LLM returns structured JSON (`request_summary` + `text`); core parses it before returning `BillResponse`.
+* Single multimodal LLM call: image + voice/text sent together in one request. Audio sent via input_audio content type. Configured model must support both vision and audio input. LLM returns structured JSON (`request_summary` + `text`) via `response_format=json_object`; core parses it before returning `BillResponse`.
+
+## Target Models
+All target models support vision, audio input, and `response_format=json_object`. Switching is one env var change.
+
+| Provider | Model (OpenRouter slug) |
+|---|---|
+| Google | `google/gemini-2.5-flash` (default), `google/gemini-2.5-pro` |
+| Anthropic | `anthropic/claude-opus-4-5`, `anthropic/claude-sonnet-4-5` |
+| OpenAI | `openai/gpt-4o`, `openai/gpt-4o-mini` |
+| xAI | `x-ai/grok-2-vision-1212` |
 
 ## Env Vars
 
