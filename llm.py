@@ -86,6 +86,7 @@ async def call_llm(
         response = await _client.chat.completions.create(
             model=settings.llm_model,
             messages=messages,
+            response_format={"type": "json_object"},
         )
     except Exception as exc:
         logger.error("LLM API call failed: %s", exc)

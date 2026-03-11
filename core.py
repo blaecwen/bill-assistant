@@ -27,6 +27,21 @@ def _is_affirmative(text: str) -> bool:
     return normalized in _AFFIRMATIVE_WORDS
 
 
+def _parse_llm_response(raw: str, session_id: str) -> tuple[str, Optional[str]]:
+    """Parse the LLM reply into (text, request_summary).
+
+    All target models (see spec) support response_format=json_object, so valid
+    JSON is the overwhelming norm. The fallback covers unexpected edge cases
+    (e.g. empty object, missing key) without crashing.
+    """
+    try:
+        data = json.loads(raw)
+        return data["text"], data.get("request_summary")
+    except (json.JSONDecodeError, KeyError) as exc:
+        logger.warning("LLM response not valid JSON for session_id=%s: %s", session_id, exc)
+        return raw, None
+
+
 @dataclass
 class BillResponse:
     text: str
@@ -201,13 +216,7 @@ async def _call_and_respond(
         logger.error("LLM error for session_id=%s", session_id)
         return BillResponse(text=_LLM_ERROR_MSG, llm_error=True)
 
-    try:
-        data = json.loads(raw)
-        text = data["text"]
-        request_summary = data.get("request_summary")
-    except (json.JSONDecodeError, KeyError) as exc:
-        logger.error("LLM returned malformed JSON for session_id=%s: %s", session_id, exc)
-        return BillResponse(text=_LLM_ERROR_MSG, llm_error=True)
+    text, request_summary = _parse_llm_response(raw, session_id)
 
     photo_store.add_to_history(session_id, "user", user_history_text)
     photo_store.add_to_history(session_id, "assistant", text)
