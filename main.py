@@ -11,6 +11,13 @@ from state import PhotoStore, RateLimiter
 logger = logging.getLogger(__name__)
 
 
+class _SuppressHealthCheck(logging.Filter):
+    """Drop GET /health access log records from uvicorn — too noisy at INFO."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "GET /health" not in record.getMessage()
+
+
 async def _run(telegram_app, fastapi_app) -> None:
     uvicorn_config = uvicorn.Config(
         fastapi_app,
@@ -37,6 +44,7 @@ def main() -> None:
         level=getattr(logging, settings.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    logging.getLogger("uvicorn.access").addFilter(_SuppressHealthCheck())
 
     photo_store = PhotoStore(
         ttl_minutes=settings.photo_ttl_minutes,
