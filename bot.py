@@ -107,7 +107,8 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
         chat_id = str(update.effective_chat.id)
         text = update.message.text
         logger.info(
-            "Incoming text message",
+            "Incoming text message: %s",
+            text[:100],
             extra={"session_id": chat_id, "length": len(text)},
         )
 
