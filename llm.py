@@ -97,7 +97,8 @@ async def call_llm(
     if not result:
         raise LLMError("Model returned empty response")
     logger.info(
-        "LLM call complete",
+        "LLM call complete: %s",
+        (request_text or "")[:100],
         extra={"model": settings.llm_model, "latency_ms": round(latency_ms)},
     )
     logger.debug("LLM response: %s", result)
