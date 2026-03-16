@@ -82,7 +82,7 @@ def build_fastapi_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Fas
                 user_id=user_id,
             )
         except Exception as exc:
-            logger.error("Unexpected error in /api/process: %s", exc)
+            logger.error("Unexpected error in /api/process session_id=%s", session_id, exc_info=True)
             return JSONResponse(status_code=500, content={"error": "server_error"})
 
         if response.rate_limited:

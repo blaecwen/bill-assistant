@@ -135,7 +135,7 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
             logger.info("Cleanup job: deleted %d expired photo(s)", count)
 
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-        logger.error("Unhandled exception", exc_info=context.error)
+        logger.warning("Unhandled exception", exc_info=context.error)
         if isinstance(update, Update) and update.effective_chat:
             try:
                 await context.bot.send_message(
