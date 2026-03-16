@@ -134,8 +134,20 @@ def build_telegram_app(photo_store: PhotoStore, rate_limiter: RateLimiter) -> Ap
         if count > 0:
             logger.info("Cleanup job: deleted %d expired photo(s)", count)
 
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.error("Unhandled exception", exc_info=context.error)
+        if isinstance(update, Update) and update.effective_chat:
+            try:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text="Something went wrong. Please try again.",
+                )
+            except Exception:
+                pass  # don't let the error handler itself crash
+
     app: Application = ApplicationBuilder().token(settings.telegram_bot_token).build()
 
+    app.add_error_handler(error_handler)
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", start_command))
     app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
