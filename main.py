@@ -19,6 +19,22 @@ class _SuppressHealthCheck(logging.Filter):
         return "GET /health" not in record.getMessage()
 
 
+class _DowngradePollingNetworkErrors(logging.Filter):
+    """Downgrade transient NetworkError tracebacks from the PTB polling loop to WARNING.
+
+    PTB logs these at ERROR with a full traceback, but it retries automatically —
+    they're not actionable and drown out real errors.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno == logging.ERROR and "polling for updates" in record.getMessage():
+            record.levelno = logging.WARNING
+            record.levelname = "WARNING"
+            record.exc_info = None
+            record.exc_text = None
+        return True
+
+
 async def _run(telegram_app, fastapi_app) -> None:
     uvicorn_config = uvicorn.Config(
         fastapi_app,
@@ -47,6 +63,7 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     logging.getLogger("uvicorn.access").addFilter(_SuppressHealthCheck())
+    logging.getLogger("telegram.ext.Updater").addFilter(_DowngradePollingNetworkErrors())
     logging.getLogger("langfuse").setLevel(log_level)
 
     photo_store = PhotoStore(

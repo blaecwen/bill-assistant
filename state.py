@@ -135,7 +135,7 @@ class PhotoStore:
             age_days = (
                 datetime.now(timezone.utc) - state.photo.stored_at
             ).days if state.photo else 0
-            logger.info(
+            logger.debug(
                 "Hard-deleting expired photo session_id=%s age_days=%d",
                 session_id,
                 age_days,

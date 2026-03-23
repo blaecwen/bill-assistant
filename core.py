@@ -229,7 +229,7 @@ async def _call_and_respond(
     text, request_summary = _parse_llm_response(raw, session_id)
 
     if request_summary:
-        logger.info("Request summary session_id=%s: %s", session_id, request_summary[:100])
+        logger.info("Request summary user_id=%s: %s", user_id, request_summary)
 
     photo_store.add_to_history(session_id, "user", user_history_text)
     photo_store.add_to_history(session_id, "assistant", text)
