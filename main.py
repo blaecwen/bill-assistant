@@ -65,6 +65,7 @@ def main() -> None:
     logging.getLogger("uvicorn.access").addFilter(_SuppressHealthCheck())
     logging.getLogger("telegram.ext.Updater").addFilter(_DowngradePollingNetworkErrors())
     logging.getLogger("langfuse").setLevel(log_level)
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
     photo_store = PhotoStore(
         ttl_minutes=settings.photo_ttl_minutes,
