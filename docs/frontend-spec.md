@@ -37,7 +37,7 @@ Mobile-first web app. User photographs a bill, records a voice request (e.g. "sp
 - The card shows the scroll-down hint if it's the first response, pulling the user to scroll.
 - Inside the card: a spinner or shimmer skeleton with something like "Crunching your bill..." — enough to signal that a response is coming.
 - Mic button and secondary buttons (new photo / upload) all disabled during processing — no new recordings or uploads until the response arrives or times out.
-- **Timeout: 60 seconds.** If no response, show error card: "Request timed out. Tap to retry."
+- **Timeout: 2 minutes.** If no response, show error card: "Request timed out. Tap to retry."
 - Once the response arrives (or errors out), the placeholder is replaced with the full response card and buttons re-enable.
 
 ### 5. Response Cards (Bumble-style scroll)
@@ -61,7 +61,7 @@ Mobile-first web app. User photographs a bill, records a voice request (e.g. "sp
 
 ## Error Handling
 - **Mic permission denied:** Show an inline message in the action bar area explaining mic access is needed, with a link/prompt to check browser settings. This is critical — voice is the only input method in MVP, so a blocked mic = dead end.
-- **API failure / timeout:** The processing card turns into an error card: "Something went wrong. Tap to retry." Retries with the same audio. API calls time out at 60 seconds.
+- **API failure / timeout:** The processing card turns into an error card: "Something went wrong. Tap to retry." Retries with the same audio. API calls time out at 2 minutes.
 - **Daily limit reached:** Response card shows: "Daily limit reached. Try again tomorrow."
 
 ## Backend Integration
